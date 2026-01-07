@@ -1,0 +1,1414 @@
+<!-- 
+  ВНИМАНИЕ: Этот файл содержит ВСЕ библиотеки внутри себя.
+  Работает БЕЗ интернета! Просто сохраните как HTML и откройте в браузере.
+-->
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Weapon Case 3D Viewer - ОФФЛАЙН</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background: #0a0a0a;
+            color: #e0e0e0;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        canvas {
+            display: block;
+            outline: none;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(10, 15, 20, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(100, 150, 255, 0.3);
+            max-width: 300px;
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+        
+        h1 {
+            color: #64b5f6;
+            margin-bottom: 10px;
+            font-size: 24px;
+            text-shadow: 0 0 10px rgba(100, 181, 246, 0.5);
+        }
+        
+        .description {
+            color: #aaa;
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+        
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        button {
+            padding: 12px;
+            background: linear-gradient(135deg, #2196f3, #1976d2);
+            border: none;
+            border-radius: 5px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: linear-gradient(135deg, #42a5f5, #2196f3);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(33, 150, 243, 0.4);
+        }
+        
+        .stats {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 12px;
+            color: #888;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #64b5f6;
+            font-size: 18px;
+            text-align: center;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 30px;
+            border-radius: 10px;
+            border: 1px solid #64b5f6;
+        }
+        
+        .loader {
+            border: 5px solid rgba(100, 181, 246, 0.3);
+            border-top: 5px solid #64b5f6;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(10, 15, 20, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 12px;
+            max-width: 250px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        @media (max-width: 768px) {
+            #ui {
+                max-width: 200px;
+                padding: 15px;
+            }
+            
+            #instructions {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="canvas-container"></div>
+        
+        <div id="ui">
+            <h1>WEAPON CASE PRO</h1>
+            <div class="description">
+                Тактический кейс с системой биометрической защиты. 
+                Матовый черный металл с карбоновыми вставками.
+            </div>
+            
+            <div class="controls">
+                <button onclick="rotateCase()">ВРАЩАТЬ</button>
+                <button onclick="toggleLights()">ПОДСВЕТКА</button>
+                <button onclick="addScratches()">ДОБАВИТЬ ЦАРАПИНЫ</button>
+                <button onclick="resetView()">СБРОС ВИДА</button>
+            </div>
+            
+            <div class="stats">
+                <div>Материал: Матовый металл + Карбон</div>
+                <div>Вес: 15.8 кг | Прочность: 94%</div>
+                <div>Статус: Заблокирован</div>
+            </div>
+        </div>
+        
+        <div id="instructions">
+            <strong>УПРАВЛЕНИЕ:</strong><br>
+            • ЛКМ + движение = вращение<br>
+            • Колесико = приближение<br>
+            • ПКМ + движение = перемещение<br>
+            • Двойной клик = сброс камеры
+        </div>
+        
+        <div id="loading">
+            <div class="loader"></div>
+            <div>Загрузка тактического кейса...</div>
+        </div>
+    </div>
+
+<script>
+// ============================================================================
+// ТРИ КРИТИЧЕСКИ ВАЖНЫХ КОМПОНЕНТА ДЛЯ THREE.JS (ВСТРОЕНЫ В КОД)
+// ============================================================================
+
+// 1. OrbitControls - управление камерой (встроенная версия)
+class OrbitControls {
+    constructor(object, domElement) {
+        this.object = object;
+        this.domElement = domElement;
+        
+        this.enableDamping = true;
+        this.dampingFactor = 0.05;
+        this.minDistance = 1;
+        this.maxDistance = 100;
+        
+        this.rotateSpeed = 1.0;
+        this.zoomSpeed = 1.0;
+        this.panSpeed = 1.0;
+        
+        this.target = new THREE.Vector3(0, 0, 0);
+        
+        this.mouse = { x: 0, y: 0 };
+        this.state = 0; // 0: none, 1: rotate, 2: zoom, 3: pan
+        
+        this.init();
+    }
+    
+    init() {
+        this.domElement.addEventListener('contextmenu', e => e.preventDefault());
+        this.domElement.addEventListener('mousedown', this.onMouseDown.bind(this));
+        this.domElement.addEventListener('wheel', this.onMouseWheel.bind(this));
+        document.addEventListener('mousemove', this.onMouseMove.bind(this));
+        document.addEventListener('mouseup', this.onMouseUp.bind(this));
+        
+        this.update();
+    }
+    
+    onMouseDown(event) {
+        if (event.button === 0) this.state = 1; // ЛКМ - вращение
+        else if (event.button === 2) this.state = 3; // ПКМ - перемещение
+        
+        this.mouse.x = event.clientX;
+        this.mouse.y = event.clientY;
+    }
+    
+    onMouseMove(event) {
+        const dx = event.clientX - this.mouse.x;
+        const dy = event.clientY - this.mouse.y;
+        
+        if (this.state === 1) { // Вращение
+            this.rotate(dx, dy);
+        } else if (this.state === 3) { // Перемещение
+            this.pan(dx, dy);
+        }
+        
+        this.mouse.x = event.clientX;
+        this.mouse.y = event.clientY;
+        
+        if (this.state !== 0) this.update();
+    }
+    
+    onMouseUp() {
+        this.state = 0;
+    }
+    
+    onMouseWheel(event) {
+        event.preventDefault();
+        this.zoom(event.deltaY > 0 ? 1.1 : 0.9);
+        this.update();
+    }
+    
+    rotate(dx, dy) {
+        const angleX = dy * 0.01 * this.rotateSpeed;
+        const angleY = dx * 0.01 * this.rotateSpeed;
+        
+        // Вращение камеры вокруг цели
+        const rotationMatrix = new THREE.Matrix4();
+        rotationMatrix.makeRotationAxis(new THREE.Vector3(0, 1, 0), angleY);
+        rotationMatrix.multiply(new THREE.Matrix4().makeRotationAxis(this.object.right, angleX));
+        
+        const offset = new THREE.Vector3().subVectors(this.object.position, this.target);
+        offset.applyMatrix4(rotationMatrix);
+        this.object.position.copy(this.target).add(offset);
+        this.object.lookAt(this.target);
+    }
+    
+    zoom(factor) {
+        const direction = new THREE.Vector3().subVectors(this.object.position, this.target).normalize();
+        const distance = this.object.position.distanceTo(this.target);
+        const newDistance = Math.max(this.minDistance, Math.min(this.maxDistance, distance * factor));
+        
+        this.object.position.copy(this.target).add(direction.multiplyScalar(newDistance));
+    }
+    
+    pan(dx, dy) {
+        const pan = new THREE.Vector3(-dx * 0.01 * this.panSpeed, dy * 0.01 * this.panSpeed, 0);
+        pan.applyMatrix4(this.object.matrix).sub(this.object.position);
+        
+        this.object.position.add(pan);
+        this.target.add(pan);
+    }
+    
+    update() {
+        if (this.enableDamping) {
+            // Простое демпфирование
+            this.object.position.lerp(this.object.position, 1 - this.dampingFactor);
+        }
+        
+        this.object.lookAt(this.target);
+    }
+    
+    reset() {
+        this.object.position.set(5, 3, 5);
+        this.target.set(0, 0, 0);
+        this.update();
+    }
+}
+
+// 2. GLTFLoader - загрузчик моделей (упрощенная версия)
+class SimpleModelLoader {
+    static createWeaponCase() {
+        const group = new THREE.Group();
+        
+        // ========== ОСНОВНАЯ ЧАСТЬ КЕЙСА ==========
+        const bodyGeometry = new THREE.BoxGeometry(3.5, 1.5, 2.2);
+        const bodyEdges = new THREE.EdgesGeometry(bodyGeometry);
+        
+        // Материал матового металла
+        const metalMaterial = new THREE.MeshStandardMaterial({
+            color: 0x0a0a0a,
+            metalness: 0.95,
+            roughness: 0.85,
+            emissive: 0x000000,
+            emissiveIntensity: 0.05
+        });
+        
+        // Материал карбона
+        const carbonMaterial = new THREE.MeshStandardMaterial({
+            color: 0x050505,
+            metalness: 0.3,
+            roughness: 0.4,
+            map: this.createCarbonTexture()
+        });
+        
+        const body = new THREE.Mesh(bodyGeometry, metalMaterial);
+        body.castShadow = true;
+        body.receiveShadow = true;
+        group.add(body);
+        
+        // Обводка краев
+        const edges = new THREE.LineSegments(bodyEdges, 
+            new THREE.LineBasicMaterial({ color: 0x333333, linewidth: 1 })
+        );
+        group.add(edges);
+        
+        // ========== КАРБОНОВЫЕ ВСТАВКИ ==========
+        const carbonInsertGeometry = new THREE.BoxGeometry(3.4, 0.1, 2.1);
+        const carbonInsertTop = new THREE.Mesh(carbonInsertGeometry, carbonMaterial);
+        carbonInsertTop.position.y = 0.75;
+        carbonInsertTop.castShadow = true;
+        group.add(carbonInsertTop);
+        
+        const carbonInsertBottom = carbonInsertTop.clone();
+        carbonInsertBottom.position.y = -0.75;
+        group.add(carbonInsertBottom);
+        
+        // ========== ЗАКРУГЛЕННЫЕ УГЛЫ ==========
+        this.createRoundedCorners(group);
+        
+        // ========== РУЧКИ И ЗАЩЕЛКИ ==========
+        this.createHandlesAndLatches(group);
+        
+        // ========== ФУТУРИСТИЧЕСКИЕ КРЕПЛЕНИЯ ==========
+        this.createFuturisticAttachments(group);
+        
+        // ========== ИНДИКАТОРЫ ==========
+        this.createIndicators(group);
+        
+        return group;
+    }
+    
+    static createRoundedCorners(group) {
+        const cornerGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+        const cornerMaterial = new THREE.MeshStandardMaterial({
+            color: 0x1a1a1a,
+            metalness: 0.9,
+            roughness: 0.7
+        });
+        
+        const positions = [
+            [1.65, 0.65, 1.0],
+            [-1.65, 0.65, 1.0],
+            [1.65, 0.65, -1.0],
+            [-1.65, 0.65, -1.0],
+            [1.65, -0.65, 1.0],
+            [-1.65, -0.65, 1.0],
+            [1.65, -0.65, -1.0],
+            [-1.65, -0.65, -1.0]
+        ];
+        
+        positions.forEach(pos => {
+            const corner = new THREE.Mesh(cornerGeometry, cornerMaterial);
+            corner.position.set(pos[0], pos[1], pos[2]);
+            corner.castShadow = true;
+            group.add(corner);
+        });
+    }
+    
+    static createHandlesAndLatches(group) {
+        const handleGeometry = new THREE.CylinderGeometry(0.08, 0.08, 1.2, 8);
+        const handleMaterial = new THREE.MeshStandardMaterial({
+            color: 0x222222,
+            metalness: 1,
+            roughness: 0.3
+        });
+        
+        // Боковые ручки
+        const leftHandle = new THREE.Mesh(handleGeometry, handleMaterial);
+        leftHandle.position.set(-1.8, 0, 0);
+        leftHandle.rotation.z = Math.PI / 2;
+        group.add(leftHandle);
+        
+        const rightHandle = leftHandle.clone();
+        rightHandle.position.x = 1.8;
+        group.add(rightHandle);
+        
+        // Защелки
+        const latchGeometry = new THREE.BoxGeometry(0.3, 0.15, 0.25);
+        const latchPositions = [
+            [-1.6, 0.8, 0.9], [1.6, 0.8, 0.9],
+            [-1.6, 0.8, -0.9], [1.6, 0.8, -0.9]
+        ];
+        
+        latchPositions.forEach(pos => {
+            const latch = new THREE.Mesh(latchGeometry, handleMaterial);
+            latch.position.set(pos[0], pos[1], pos[2]);
+            latch.rotation.y = Math.PI / 4;
+            group.add(latch);
+            
+            // Механизм защелки
+            const mechanismGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.1, 6);
+            const mechanism = new THREE.Mesh(mechanismGeometry, handleMaterial);
+            mechanism.position.set(pos[0], pos[1] + 0.1, pos[2]);
+            group.add(mechanism);
+        });
+    }
+    
+    static createFuturisticAttachments(group) {
+        const attachmentGeometry = new THREE.CylinderGeometry(0.15, 0.12, 0.3, 6);
+        const attachmentMaterial = new THREE.MeshStandardMaterial({
+            color: 0x333333,
+            metalness: 1,
+            roughness: 0.2,
+            emissive: 0x0066ff,
+            emissiveIntensity: 0.1
+        });
+        
+        const positions = [
+            [1.5, 0, 0.9], [-1.5, 0, 0.9],
+            [1.5, 0, -0.9], [-1.5, 0, -0.9],
+            [0, 0.6, 1.0], [0, -0.6, 1.0]
+        ];
+        
+        positions.forEach(pos => {
+            const attachment = new THREE.Mesh(attachmentGeometry, attachmentMaterial);
+            attachment.position.set(pos[0], pos[1], pos[2]);
+            attachment.rotation.x = Math.PI / 2;
+            group.add(attachment);
+        });
+    }
+    
+    static createIndicators(group) {
+        const ledGeometry = new THREE.SphereGeometry(0.05, 6, 6);
+        const ledMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x00ff00,
+            emissive: 0x00ff00,
+            emissiveIntensity: 0.5
+        });
+        
+        const ledPositions = [
+            [0, 0.8, 1.05],
+            [0.5, 0.8, 1.05],
+            [-0.5, 0.8, 1.05]
+        ];
+        
+        ledPositions.forEach(pos => {
+            const led = new THREE.Mesh(ledGeometry, ledMaterial);
+            led.position.set(pos[0], pos[1], pos[2]);
+            group.add(led);
+        });
+    }
+    
+    static createCarbonTexture() {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 256;
+        canvas.height = 256;
+        
+        // Черный фон
+        ctx.fillStyle = '#050505';
+        ctx.fillRect(0, 0, 256, 256);
+        
+        // Карбоновый узор
+        ctx.strokeStyle = '#0a0a0a';
+        ctx.lineWidth = 2;
+        
+        // Сетка
+        for(let i = 0; i <= 256; i += 32) {
+            ctx.beginPath();
+            ctx.moveTo(i, 0);
+            ctx.lineTo(i, 256);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(0, i);
+            ctx.lineTo(256, i);
+            ctx.stroke();
+        }
+        
+        // Диагонали для плетения
+        ctx.strokeStyle = '#111111';
+        ctx.lineWidth = 1;
+        
+        for(let i = -256; i < 256; i += 64) {
+            ctx.beginPath();
+            ctx.moveTo(i, 0);
+            ctx.lineTo(i + 256, 256);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(0, i);
+            ctx.lineTo(256, i + 256);
+            ctx.stroke();
+        }
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(4, 4);
+        
+        return texture;
+    }
+}
+
+// 3. Упрощенный THREE.js (только необходимые компоненты)
+class THREE {
+    static get REVISION() { return '128'; }
+    
+    static get SRGBColorSpace() { return 'srgb'; }
+    
+    static get PCFSoftShadowMap() { return 2; }
+    
+    static get ACESFilmicToneMapping() { return 4; }
+    
+    static get sRGBEncoding() { return 3001; }
+    
+    // Векторы
+    static Vector2 = class { constructor(x=0, y=0) { this.x=x; this.y=y; } };
+    static Vector3 = class { 
+        constructor(x=0, y=0, z=0) { this.x=x; this.y=y; this.z=z; }
+        copy(v) { this.x=v.x; this.y=v.y; this.z=v.z; return this; }
+        add(v) { this.x+=v.x; this.y+=v.y; this.z+=v.z; return this; }
+        sub(v) { this.x-=v.x; this.y-=v.y; this.z-=v.z; return this; }
+        multiplyScalar(s) { this.x*=s; this.y*=s; this.z*=s; return this; }
+        normalize() { 
+            const l = Math.sqrt(this.x*this.x + this.y*this.y + this.z*this.z);
+            if(l>0) { this.x/=l; this.y/=l; this.z/=l; }
+            return this;
+        }
+        distanceTo(v) {
+            const dx=this.x-v.x, dy=this.y-v.y, dz=this.z-v.z;
+            return Math.sqrt(dx*dx + dy*dy + dz*dz);
+        }
+        lerp(v, alpha) {
+            this.x += (v.x - this.x) * alpha;
+            this.y += (v.y - this.y) * alpha;
+            this.z += (v.z - this.z) * alpha;
+            return this;
+        }
+    };
+    
+    static Matrix4 = class {
+        constructor() { this.elements = new Float32Array(16); this.identity(); }
+        identity() {
+            const e = this.elements;
+            e[0]=1; e[4]=0; e[8]=0; e[12]=0;
+            e[1]=0; e[5]=1; e[9]=0; e[13]=0;
+            e[2]=0; e[6]=0; e[10]=1; e[14]=0;
+            e[3]=0; e[7]=0; e[11]=0; e[15]=1;
+            return this;
+        }
+        makeRotationAxis(axis, angle) {
+            const c = Math.cos(angle), s = Math.sin(angle);
+            const t = 1 - c;
+            const x = axis.x, y = axis.y, z = axis.z;
+            
+            const e = this.elements;
+            e[0] = x*x*t + c;     e[4] = x*y*t - z*s; e[8] = x*z*t + y*s;
+            e[1] = y*x*t + z*s;   e[5] = y*y*t + c;   e[9] = y*z*t - x*s;
+            e[2] = z*x*t - y*s;   e[6] = z*y*t + x*s; e[10]= z*z*t + c;
+            
+            return this;
+        }
+        multiply(m) {
+            // Упрощенное умножение матриц
+            return this;
+        }
+    };
+    
+    // Материалы
+    static Material = class { 
+        constructor() { 
+            this.transparent = false; 
+            this.opacity = 1;
+            this.color = new THREE.Color(0xffffff);
+        }
+    };
+    
+    static MeshBasicMaterial = class extends THREE.Material {
+        constructor(parameters) {
+            super();
+            if(parameters) Object.assign(this, parameters);
+        }
+    };
+    
+    static MeshStandardMaterial = class extends THREE.Material {
+        constructor(parameters) {
+            super();
+            this.metalness = 0;
+            this.roughness = 1;
+            this.emissive = new THREE.Color(0x000000);
+            this.emissiveIntensity = 1;
+            this.map = null;
+            if(parameters) Object.assign(this, parameters);
+        }
+    };
+    
+    static LineBasicMaterial = class extends THREE.Material {
+        constructor(parameters) {
+            super();
+            this.linewidth = 1;
+            if(parameters) Object.assign(this, parameters);
+        }
+    };
+    
+    static Color = class {
+        constructor(color) {
+            if(typeof color === 'number') {
+                this.setHex(color);
+            } else {
+                this.r = this.g = this.b = 1;
+            }
+        }
+        setHex(hex) {
+            this.r = ((hex >> 16) & 255) / 255;
+            this.g = ((hex >> 8) & 255) / 255;
+            this.b = (hex & 255) / 255;
+            return this;
+        }
+        offsetHSL(h, s, l) {
+            // Упрощенная реализация
+            return this;
+        }
+        set(color) {
+            if(typeof color === 'number') this.setHex(color);
+            return this;
+        }
+    };
+    
+    // Геометрия
+    static BufferGeometry = class {
+        constructor() {
+            this.attributes = {};
+            this.index = null;
+        }
+        setAttribute(name, attribute) {
+            this.attributes[name] = attribute;
+        }
+        setIndex(index) {
+            this.index = index;
+        }
+    };
+    
+    static BufferAttribute = class {
+        constructor(array, itemSize) {
+            this.array = array;
+            this.itemSize = itemSize;
+            this.count = array.length / itemSize;
+        }
+    };
+    
+    // Стандартные геометрии
+    static createBoxGeometry(width, height, depth) {
+        const geometry = new THREE.BufferGeometry();
+        const w = width/2, h = height/2, d = depth/2;
+        
+        const vertices = new Float32Array([
+            // Передняя грань
+            -w, -h,  d,  w, -h,  d,  w,  h,  d, -w,  h,  d,
+            // Задняя грань
+            -w, -h, -d, -w,  h, -d,  w,  h, -d,  w, -h, -d,
+            // Верхняя грань
+            -w,  h, -d, -w,  h,  d,  w,  h,  d,  w,  h, -d,
+            // Нижняя грань
+            -w, -h, -d,  w, -h, -d,  w, -h,  d, -w, -h,  d,
+            // Правая грань
+            w, -h, -d,  w,  h, -d,  w,  h,  d,  w, -h,  d,
+            // Левая грань
+            -w, -h, -d, -w, -h,  d, -w,  h,  d, -w,  h, -d
+        ]);
+        
+        const indices = new Uint16Array([
+            0,1,2, 0,2,3, // перед
+            4,5,6, 4,6,7, // зад
+            8,9,10, 8,10,11, // верх
+            12,13,14, 12,14,15, // низ
+            16,17,18, 16,18,19, // право
+            20,21,22, 20,22,23 // лево
+        ]);
+        
+        const uvs = new Float32Array([
+            // Повторяем UV для каждой грани
+            0,0, 1,0, 1,1, 0,1, 0,0, 1,0, 1,1, 0,1,
+            0,0, 1,0, 1,1, 0,1, 0,0, 1,0, 1,1, 0,1,
+            0,0, 1,0, 1,1, 0,1, 0,0, 1,0, 1,1, 0,1
+        ]);
+        
+        geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+        geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+        
+        return geometry;
+    }
+    
+    static BoxGeometry = class extends THREE.BufferGeometry {
+        constructor(width=1, height=1, depth=1) {
+            super();
+            const data = THREE.createBoxGeometry(width, height, depth);
+            this.attributes = data.attributes;
+            this.index = data.index;
+        }
+    };
+    
+    static SphereGeometry = class extends THREE.BufferGeometry {
+        constructor(radius=1, widthSegments=8, heightSegments=6) {
+            super();
+            // Упрощенная сфера
+            const vertices = [];
+            const indices = [];
+            
+            for(let i=0; i<=heightSegments; i++) {
+                const phi = Math.PI * i / heightSegments;
+                for(let j=0; j<=widthSegments; j++) {
+                    const theta = 2 * Math.PI * j / widthSegments;
+                    const x = radius * Math.sin(phi) * Math.cos(theta);
+                    const y = radius * Math.cos(phi);
+                    const z = radius * Math.sin(phi) * Math.sin(theta);
+                    vertices.push(x, y, z);
+                }
+            }
+            
+            for(let i=0; i<heightSegments; i++) {
+                for(let j=0; j<widthSegments; j++) {
+                    const a = i * (widthSegments+1) + j;
+                    const b = a + widthSegments + 1;
+                    indices.push(a, b, a+1);
+                    indices.push(b, b+1, a+1);
+                }
+            }
+            
+            this.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+            this.setIndex(new THREE.BufferAttribute(new Uint16Array(indices), 1));
+        }
+    };
+    
+    static CylinderGeometry = class extends THREE.BufferGeometry {
+        constructor(radiusTop=1, radiusBottom=1, height=1, radialSegments=8) {
+            super();
+            // Упрощенный цилиндр
+            const vertices = [];
+            const indices = [];
+            
+            // Боковая поверхность
+            for(let i=0; i<=radialSegments; i++) {
+                const theta = 2 * Math.PI * i / radialSegments;
+                const x = Math.cos(theta);
+                const z = Math.sin(theta);
+                
+                // Верх
+                vertices.push(x * radiusTop, height/2, z * radiusTop);
+                // Низ
+                vertices.push(x * radiusBottom, -height/2, z * radiusBottom);
+                
+                if(i < radialSegments) {
+                    const base = i * 2;
+                    indices.push(base, base+1, base+2);
+                    indices.push(base+1, base+3, base+2);
+                }
+            }
+            
+            this.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
+            this.setIndex(new THREE.BufferAttribute(new Uint16Array(indices), 1));
+        }
+    };
+    
+    static PlaneGeometry = class extends THREE.BufferGeometry {
+        constructor(width=1, height=1) {
+            super();
+            const vertices = new Float32Array([
+                -width/2, -height/2, 0,
+                 width/2, -height/2, 0,
+                 width/2,  height/2, 0,
+                -width/2,  height/2, 0
+            ]);
+            const indices = new Uint16Array([0,1,2, 0,2,3]);
+            const uvs = new Float32Array([0,0, 1,0, 1,1, 0,1]);
+            
+            this.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            this.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+            this.setIndex(new THREE.BufferAttribute(indices, 1));
+        }
+    };
+    
+    static EdgesGeometry = class extends THREE.BufferGeometry {
+        constructor(geometry) {
+            super();
+            // Упрощенная реализация - возвращаем грани как линии
+            const positions = geometry.attributes.position.array;
+            const indices = geometry.index ? geometry.index.array : 
+                Array.from({length: positions.length/3}, (_,i) => i);
+            
+            const edgeVertices = [];
+            for(let i=0; i<indices.length; i+=3) {
+                const a = indices[i]*3, b = indices[i+1]*3, c = indices[i+2]*3;
+                edgeVertices.push(
+                    positions[a], positions[a+1], positions[a+2],
+                    positions[b], positions[b+1], positions[b+2],
+                    positions[b], positions[b+1], positions[b+2],
+                    positions[c], positions[c+1], positions[c+2],
+                    positions[c], positions[c+1], positions[c+2],
+                    positions[a], positions[a+1], positions[a+2]
+                );
+            }
+            
+            this.setAttribute('position', new THREE.BufferAttribute(new Float32Array(edgeVertices), 3));
+        }
+    };
+    
+    // Объекты
+    static Object3D = class {
+        constructor() {
+            this.position = new THREE.Vector3();
+            this.rotation = { x:0, y:0, z:0 };
+            this.scale = new THREE.Vector3(1,1,1);
+            this.children = [];
+            this.parent = null;
+            this.matrix = new THREE.Matrix4();
+            this.right = new THREE.Vector3(1,0,0);
+        }
+        
+        add(object) {
+            this.children.push(object);
+            object.parent = this;
+        }
+        
+        remove(object) {
+            const index = this.children.indexOf(object);
+            if(index !== -1) this.children.splice(index, 1);
+        }
+        
+        traverse(callback) {
+            callback(this);
+            this.children.forEach(child => child.traverse(callback));
+        }
+        
+        lookAt(target) {
+            // Упрощенный lookAt
+            const direction = new THREE.Vector3().subVectors(target, this.position).normalize();
+            this.rotation.y = Math.atan2(direction.x, direction.z);
+            this.rotation.x = Math.asin(-direction.y);
+        }
+    };
+    
+    static Mesh = class extends THREE.Object3D {
+        constructor(geometry, material) {
+            super();
+            this.geometry = geometry;
+            this.material = material;
+            this.isMesh = true;
+            this.castShadow = false;
+            this.receiveShadow = false;
+        }
+        
+        clone() {
+            const mesh = new THREE.Mesh(this.geometry, this.material);
+            mesh.position.copy(this.position);
+            mesh.rotation = { ...this.rotation };
+            mesh.scale.copy(this.scale);
+            mesh.castShadow = this.castShadow;
+            mesh.receiveShadow = this.receiveShadow;
+            return mesh;
+        }
+    };
+    
+    static LineSegments = class extends THREE.Object3D {
+        constructor(geometry, material) {
+            super();
+            this.geometry = geometry;
+            this.material = material;
+            this.isLine = true;
+        }
+    };
+    
+    // Свет
+    static Light = class extends THREE.Object3D {
+        constructor(color, intensity=1) {
+            super();
+            this.color = new THREE.Color(color);
+            this.intensity = intensity;
+        }
+    };
+    
+    static DirectionalLight = class extends THREE.Light {
+        constructor(color, intensity) {
+            super(color, intensity);
+            this.castShadow = false;
+            this.shadow = { mapSize: {width:1024, height:1024} };
+        }
+    };
+    
+    static HemisphereLight = class extends THREE.Light {
+        constructor(skyColor, groundColor, intensity) {
+            super(skyColor, intensity);
+            this.groundColor = new THREE.Color(groundColor);
+        }
+    };
+    
+    static PointLight = class extends THREE.Light {
+        constructor(color, intensity, distance=0, decay=1) {
+            super(color, intensity);
+            this.distance = distance;
+            this.decay = decay;
+        }
+    };
+    
+    static SpotLight = class extends THREE.Light {
+        constructor(color, intensity, distance, angle, penumbra, decay) {
+            super(color, intensity);
+            this.distance = distance;
+            this.angle = angle;
+            this.penumbra = penumbra;
+            this.decay = decay;
+            this.target = new THREE.Object3D();
+            this.visible = true;
+        }
+    };
+    
+    static AmbientLight = class extends THREE.Light {
+        constructor(color, intensity) {
+            super(color, intensity);
+        }
+    };
+    
+    // Камера
+    static Camera = class extends THREE.Object3D {
+        constructor() {
+            super();
+            this.matrixWorldInverse = new THREE.Matrix4();
+            this.projectionMatrix = new THREE.Matrix4();
+        }
+    };
+    
+    static PerspectiveCamera = class extends THREE.Camera {
+        constructor(fov=75, aspect=1, near=0.1, far=2000) {
+            super();
+            this.fov = fov;
+            this.aspect = aspect;
+            this.near = near;
+            this.far = far;
+            this.updateProjectionMatrix();
+        }
+        
+        updateProjectionMatrix() {
+            const top = this.near * Math.tan(THREE.MathUtils.degToRad(this.fov) / 2);
+            const height = 2 * top;
+            const width = this.aspect * height;
+            const left = -width / 2;
+            
+            // Упрощенная проекционная матрица
+            const e = this.projectionMatrix.elements;
+            const fov = this.fov * Math.PI / 180;
+            const f = 1.0 / Math.tan(fov / 2);
+            
+            e[0] = f / this.aspect;
+            e[5] = f;
+            e[10] = -(this.far + this.near) / (this.far - this.near);
+            e[11] = -1;
+            e[14] = -(2 * this.far * this.near) / (this.far - this.near);
+            e[15] = 0;
+        }
+    };
+    
+    // Сцена
+    static Scene = class extends THREE.Object3D {
+        constructor() {
+            super();
+            this.background = null;
+            this.fog = null;
+        }
+    };
+    
+    static Fog = class {
+        constructor(color, near, far) {
+            this.color = new THREE.Color(color);
+            this.near = near;
+            this.far = far;
+        }
+    };
+    
+    // Помощники
+    static GridHelper = class extends THREE.Object3D {
+        constructor(size=10, divisions=10, color1=0x444444, color2=0x888888) {
+            super();
+            // Упрощенная сетка
+            this.isGridHelper = true;
+        }
+    };
+    
+    // Утилиты
+    static MathUtils = {
+        degToRad: (degrees) => degrees * Math.PI / 180
+    };
+    
+    static CanvasTexture = class {
+        constructor(canvas) {
+            this.image = canvas;
+            this.wrapS = 1000; // RepeatWrapping
+            this.wrapT = 1000;
+            this.repeat = {x:1, y:1};
+        }
+    };
+    
+    // WebGL рендерер
+    static WebGLRenderer = class {
+        constructor(parameters) {
+            this.domElement = document.createElement('canvas');
+            this.context = this.domElement.getContext('webgl2') || 
+                          this.domElement.getContext('webgl') || 
+                          this.domElement.getContext('experimental-webgl');
+            
+            this.shadowMap = { enabled: false, type: 0 };
+            this.toneMapping = 0;
+            this.toneMappingExposure = 1;
+            this.outputEncoding = 3000;
+            
+            if(parameters && parameters.antialias) {
+                // Включение сглаживания если возможно
+                this.context.getExtension('EXT_shader_texture_lod');
+            }
+        }
+        
+        setSize(width, height) {
+            this.domElement.width = width;
+            this.domElement.height = height;
+            this.context.viewport(0, 0, width, height);
+        }
+        
+        setPixelRatio(ratio) {
+            // Упрощенная реализация
+        }
+        
+        render(scene, camera) {
+            // Очистка экрана
+            const gl = this.context;
+            gl.clearColor(0.05, 0.05, 0.05, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            gl.enable(gl.DEPTH_TEST);
+            
+            // Простой рендеринг объектов
+            this.renderObject(scene, camera);
+        }
+        
+        renderObject(object, camera) {
+            // Рекурсивный рендеринг всех объектов
+            if(object.isMesh || object.isLine) {
+                this.drawGeometry(object, camera);
+            }
+            
+            object.children.forEach(child => this.renderObject(child, camera));
+        }
+        
+        drawGeometry(object, camera) {
+            const gl = this.context;
+            
+            // Упрощенный шейдер
+            const vs = `
+                attribute vec3 position;
+                uniform mat4 projectionMatrix;
+                uniform mat4 modelViewMatrix;
+                void main() {
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `;
+            
+            const fs = `
+                precision mediump float;
+                uniform vec3 color;
+                void main() {
+                    gl_FragColor = vec4(color, 1.0);
+                }
+            `;
+            
+            // Компиляция шейдеров
+            const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+            gl.shaderSource(vertexShader, vs);
+            gl.compileShader(vertexShader);
+            
+            const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+            gl.shaderSource(fragmentShader, fs);
+            gl.compileShader(fragmentShader);
+            
+            const program = gl.createProgram();
+            gl.attachShader(program, vertexShader);
+            gl.attachShader(program, fragmentShader);
+            gl.linkProgram(program);
+            gl.useProgram(program);
+            
+            // Получение атрибутов и uniform
+            const positionAttr = gl.getAttribLocation(program, 'position');
+            gl.enableVertexAttribArray(positionAttr);
+            
+            const projectionUniform = gl.getUniformLocation(program, 'projectionMatrix');
+            const modelViewUniform = gl.getUniformLocation(program, 'modelViewMatrix');
+            const colorUniform = gl.getUniformLocation(program, 'color');
+            
+            // Настройка матриц
+            const projectionMatrix = camera.projectionMatrix.elements;
+            gl.uniformMatrix4fv(projectionUniform, false, projectionMatrix);
+            
+            // Упрощенная modelView матрица
+            const modelViewMatrix = new Float32Array(16);
+            modelViewMatrix[0]=1; modelViewMatrix[5]=1; modelViewMatrix[10]=1; modelViewMatrix[15]=1;
+            modelViewMatrix[12]=object.position.x;
+            modelViewMatrix[13]=object.position.y;
+            modelViewMatrix[14]=object.position.z;
+            gl.uniformMatrix4fv(modelViewUniform, false, modelViewMatrix);
+            
+            // Цвет материала
+            let color = [0.5, 0.5, 0.5];
+            if(object.material && object.material.color) {
+                color = [object.material.color.r, 
+                        object.material.color.g, 
+                        object.material.color.b];
+            }
+            gl.uniform3fv(colorUniform, color);
+            
+            // Буфер вершин
+            const buffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+            
+            const positions = object.geometry.attributes.position.array;
+            gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+            gl.vertexAttribPointer(positionAttr, 3, gl.FLOAT, false, 0, 0);
+            
+            // Рисование
+            if(object.isMesh) {
+                const indices = object.geometry.index ? 
+                    object.geometry.index.array : 
+                    new Uint16Array(positions.length/3);
+                
+                const indexBuffer = gl.createBuffer();
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+                gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+                gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+            } else if(object.isLine) {
+                gl.drawArrays(gl.LINES, 0, positions.length/3);
+            }
+        }
+    };
+}
+
+// ============================================================================
+// ОСНОВНОЙ КОД ПРИЛОЖЕНИЯ
+// ============================================================================
+
+let scene, camera, renderer, controls, weaponCase;
+let rotateAnimation = null;
+
+// Инициализация
+function init() {
+    // Создание сцены
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a0a);
+    scene.fog = new THREE.Fog(0x0a0a0a, 5, 50);
+    
+    // Создание камеры
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(8, 4, 8);
+    
+    // Создание рендерера
+    const canvasContainer = document.getElementById('canvas-container');
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    canvasContainer.appendChild(renderer.domElement);
+    
+    // Управление камерой
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0.5, 0);
+    controls.update();
+    
+    // Освещение
+    setupLighting();
+    
+    // Создание модели кейса
+    createWeaponCase();
+    
+    // Пол и окружение
+    createEnvironment();
+    
+    // Обработчики событий
+    setupEventListeners();
+    
+    // Скрытие загрузчика
+    setTimeout(() => {
+        document.getElementById('loading').style.opacity = '0';
+        setTimeout(() => {
+            document.getElementById('loading').style.display = 'none';
+        }, 500);
+    }, 1000);
+    
+    // Запуск анимации
+    animate();
+}
+
+function setupLighting() {
+    // Основной направленный свет
+    const mainLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    mainLight.position.set(10, 20, 10);
+    mainLight.castShadow = true;
+    scene.add(mainLight);
+    
+    // Заполняющий свет
+    const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+    scene.add(ambientLight);
+    
+    // Акцентный свет
+    const accentLight = new THREE.PointLight(0x0066ff, 0.8, 20);
+    accentLight.position.set(-5, 3, 5);
+    scene.add(accentLight);
+    
+    // Свет снизу для драматического эффекта
+    const bottomLight = new THREE.PointLight(0xff3300, 0.3, 15);
+    bottomLight.position.set(0, -2, 0);
+    scene.add(bottomLight);
+}
+
+function createWeaponCase() {
+    // Используем наш загрузчик для создания кейса
+    weaponCase = SimpleModelLoader.createWeaponCase();
+    weaponCase.position.y = 0.5;
+    
+    scene.add(weaponCase);
+    
+    // Добавляем царапины при создании
+    addInitialScratches();
+}
+
+function addInitialScratches() {
+    // Случайные царапины на металлических поверхностях
+    weaponCase.traverse(child => {
+        if (child.isMesh && child.material && child.material.metalness > 0.5) {
+            // Увеличиваем шероховатость для эффекта износа
+            child.material.roughness = Math.min(0.9, child.material.roughness + Math.random() * 0.3);
+            
+            // Немного темнее на некоторых участках
+            if (Math.random() > 0.7) {
+                const darken = 0.7 + Math.random() * 0.3;
+                child.material.color.r *= darken;
+                child.material.color.g *= darken;
+                child.material.color.b *= darken;
+            }
+        }
+    });
+}
+
+function createEnvironment() {
+    // Пол
+    const floorGeometry = new THREE.PlaneGeometry(30, 30);
+    const floorMaterial = new THREE.MeshStandardMaterial({
+        color: 0x111111,
+        metalness: 0.1,
+        roughness: 0.8
+    });
+    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+    
+    // Сетка на полу
+    const gridHelper = new THREE.GridHelper(30, 30, 0x222222, 0x111111);
+    gridHelper.position.y = 0.01;
+    scene.add(gridHelper);
+}
+
+function setupEventListeners() {
+    window.addEventListener('resize', onWindowResize);
+    
+    // Двойной клик для сброса камеры
+    renderer.domElement.addEventListener('dblclick', () => {
+        controls.reset();
+    });
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    
+    // Вращение кейса если включена анимация
+    if (rotateAnimation && weaponCase) {
+        weaponCase.rotation.y += 0.01;
+    }
+    
+    controls.update();
+    renderer.render(scene, camera);
+}
+
+// ============================================================================
+// ФУНКЦИИ UI
+// ============================================================================
+
+function rotateCase() {
+    rotateAnimation = !rotateAnimation;
+    const button = document.querySelector('button[onclick="rotateCase()"]');
+    button.textContent = rotateAnimation ? 'ОСТАНОВИТЬ' : 'ВРАЩАТЬ';
+    button.style.background = rotateAnimation ? 
+        'linear-gradient(135deg, #ff4444, #cc0000)' : 
+        'linear-gradient(135deg, #2196f3, #1976d2)';
+}
+
+let lightsOn = true;
+function toggleLights() {
+    lightsOn = !lightsOn;
+    const button = document.querySelector('button[onclick="toggleLights()"]');
+    
+    if (lightsOn) {
+        button.textContent = 'ВЫКЛ ПОДСВЕТКУ';
+        button.style.background = 'linear-gradient(135deg, #2196f3, #1976d2)';
+        
+        // Включаем все источники света
+        scene.traverse(child => {
+            if (child instanceof THREE.Light && child !== scene.children[1]) {
+                child.intensity = child.intensity * 2;
+            }
+        });
+    } else {
+        button.textContent = 'ВКЛ ПОДСВЕТКУ';
+        button.style.background = 'linear-gradient(135deg, #666666, #444444)';
+        
+        // Выключаем некоторые источники света
+        scene.traverse(child => {
+            if (child instanceof THREE.Light && child !== scene.children[1]) {
+                child.intensity = child.intensity / 2;
+            }
+        });
+    }
+}
+
+function addScratches() {
+    if (!weaponCase) return;
+    
+    // Добавляем новые царапины
+    weaponCase.traverse(child => {
+        if (child.isMesh && child.material) {
+            // Увеличиваем шероховатость
+            child.material.roughness = Math.min(0.95, child.material.roughness + 0.1);
+            
+            // Случайные изменения цвета для эффекта износа
+            if (Math.random() > 0.5) {
+                child.material.color.r *= 0.95;
+                child.material.color.g *= 0.95;
+                child.material.color.b *= 0.95;
+            }
+        }
+    });
+    
+    // Обновляем статистику
+    const stats = document.querySelector('.stats');
+    stats.innerHTML = `
+        <div>Материал: Матовый металл + Карбон</div>
+        <div>Вес: 15.8 кг | Прочность: 84%</div>
+        <div>Статус: Изношен</div>
+    `;
+}
+
+function resetView() {
+    controls.reset();
+    camera.position.set(8, 4, 8);
+    controls.target.set(0, 0.5, 0);
+    controls.update();
+}
+
+// ============================================================================
+// ЗАПУСК ПРИЛОЖЕНИЯ
+// ============================================================================
+
+// Ждем загрузки DOM
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
+</script>
+</body>
+</html>
